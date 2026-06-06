@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D-STAR Live Activity</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --green:    #3fb950;
+      --yellow:   #e3b341;
+      --orange:   #f0883e;
+      --red:      #f85149;
+      /* Protocol colours */
+      --c-REF:    #388bfd;
+      --c-XLX:    #3fb950;
+      --c-DCS:    #e3b341;
+      --c-XRF:    #bc8cff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      min-height: 100vh;
+      padding: 20px 16px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+    .title span { color: var(--green); }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+    .dot.error  { background: var(--red);    box-shadow: 0 0 6px var(--red);    animation: none; }
+    .dot.stale  { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ── Table ──────────────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead th {
+      padding: 6px 14px;
+      text-align: left;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.center { text-align: center; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface); }
+
+    td {
+      padding: 11px 14px;
+      vertical-align: middle;
+    }
+
+    .td-rank {
+      color: var(--muted);
+      font-size: 0.72rem;
+      width: 30px;
+      text-align: right;
+    }
+
+    /* Protocol badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .badge-REF { color: var(--c-REF); background: rgba(56,139,253,.13); border: 1px solid rgba(56,139,253,.4); }
+    .badge-XLX { color: var(--c-XLX); background: rgba(63,185,80,.13);  border: 1px solid rgba(63,185,80,.4);  }
+    .badge-DCS { color: var(--c-DCS); background: rgba(227,179,65,.13); border: 1px solid rgba(227,179,65,.4); }
+    .badge-XRF { color: var(--c-XRF); background: rgba(188,140,255,.13);border: 1px solid rgba(188,140,255,.4);}
+
+    .td-id { font-weight: 600; letter-spacing: 0.04em; }
+
+    .module-circle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .td-call { font-weight: 500; letter-spacing: 0.03em; }
+
+    .td-time { white-space: nowrap; font-size: 0.78rem; }
+    .fresh  { color: var(--green); }
+    .recent { color: var(--yellow); }
+    .old    { color: var(--orange); }
+    .stale  { color: var(--red); }
+
+    /* ── Empty / loading / error states ─────────────────────────────────── */
+    .state-box {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .state-box.err { color: var(--red); }
+
+    /* ── Footer ─────────────────────────────────────────────────────────── */
+    footer {
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .source-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .source-pill {
+      padding: 2px 8px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      font-size: 0.65rem;
+    }
+    .source-pill.ok    { border-color: rgba(63,185,80,.4);  color: var(--green); }
+    .source-pill.error { border-color: rgba(248,81,73,.4);  color: var(--red); }
+    .source-pill.pending { color: var(--muted); }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 560px) {
+      .hide-mobile { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title">D-STAR <span>LIVE</span> &nbsp;·&nbsp; Reflector Activity</div>
+    <div class="meta">
+      <span class="live-indicator">
+        <span class="dot" id="dot"></span>
+        <span id="updated">—</span>
+      </span>
+      <span>Refresh in <strong id="countdown">30</strong>s</span>
+    </div>
+  </header>
+
+  <div class="table-wrap" id="content">
+    <div class="state-box">Loading reflector activity…</div>
+  </div>
+
+  <footer>
+    <div class="source-pills" id="source-pills"></div>
+    <span id="foot-right"></span>
+  </footer>
+
+  <script>
+    const API   = '/api/reflectors';
+    const EVERY = 30; // seconds between refreshes
+
+    let timer, countdown;
+    let lastData = null;
+
+    // ── Time helpers ────────────────────────────────────────────────────────
+
+    function secsAgo(iso) {
+      return Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
+    }
+
+    function fmtAgo(s) {
+      if (s <  60)   return `${s}s ago`;
+      if (s < 3600)  return `${Math.floor(s / 60)}m ${s % 60}s ago`;
+      return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ago`;
+    }
+
+    function agoClass(s) {
+      if (s <  300) return 'fresh';
+      if (s <  900) return 'recent';
+      if (s < 1800) return 'old';
+      return 'stale';
+    }
+
+    // ── Render ──────────────────────────────────────────────────────────────
+
+    function renderTable(data) {
+      lastData = data;
+      const { reflectors = [], sources = {}, updatedAt } = data;
+
+      // Header status
+      const dot = document.getElementById('dot');
+      const upd = document.getElementById('updated');
+      if (updatedAt) {
+        dot.className = 'dot';
+        upd.textContent = new Date(updatedAt).toUTCString().slice(17, 25) + ' UTC';
+      }
+
+      // Source pills
+      const pills = document.getElementById('source-pills');
+      pills.innerHTML = Object.entries(sources).map(([k, v]) =>
+        `<span class="source-pill ${v.status}">${k.toUpperCase()} ${
+          v.status === 'ok'    ? `✓ ${v.entries} entries` :
+          v.status === 'error' ? `✗ ${v.message || 'error'}` :
+          'pending'
+        }</span>`
+      ).join('');
+
+      if (!reflectors.length) {
+        document.getElementById('content').innerHTML =
+          '<div class="state-box">No reflector activity in the last 30 minutes.</div>';
+        document.getElementById('foot-right').textContent = '';
+        return;
+      }
+
+      const rows = reflectors.map(r => {
+        const s   = secsAgo(r.lastHeardAt);
+        const cls = agoClass(s);
+        return `
+          <tr>
+            <td class="td-rank">${r.rank}</td>
+            <td><span class="badge badge-${r.protocol}">${r.protocol}</span></td>
+            <td class="td-id">${r.id}</td>
+            <td style="text-align:center"><span class="module-circle">${r.module}</span></td>
+            <td class="td-call hide-mobile">${r.lastCallsign}</td>
+            <td class="td-time ${cls}">${fmtAgo(s)}</td>
+          </tr>`;
+      }).join('');
+
+      document.getElementById('content').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Protocol</th>
+              <th>Reflector</th>
+              <th class="center">Mod</th>
+              <th class="hide-mobile">Last Callsign</th>
+              <th>Heard</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+
+      document.getElementById('foot-right').textContent =
+        `Showing ${reflectors.length} of ${reflectors.length} most-recent reflectors`;
+    }
+
+    // Live-update the "Xm Ys ago" cells without a full re-render
+    function tickTimes() {
+      if (!lastData) return;
+      document.querySelectorAll('tbody tr').forEach((tr, i) => {
+        const r   = lastData.reflectors[i];
+        if (!r) return;
+        const td  = tr.querySelector('.td-time');
+        const s   = secsAgo(r.lastHeardAt);
+        td.textContent  = fmtAgo(s);
+        td.className    = `td-time ${agoClass(s)}`;
+      });
+    }
+
+    // ── Fetch ───────────────────────────────────────────────────────────────
+
+    async function refresh() {
+      try {
+        const res = await fetch(API);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        renderTable(await res.json());
+      } catch (err) {
+        document.getElementById('dot').className = 'dot error';
+        document.getElementById('updated').textContent = 'fetch failed';
+        console.error(err);
+      }
+    }
+
+    function startCountdown() {
+      clearInterval(timer);
+      countdown = EVERY;
+      document.getElementById('countdown').textContent = countdown;
+
+      timer = setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').textContent = Math.max(0, countdown);
+        tickTimes();
+        if (countdown <= 0) {
+          clearInterval(timer);
+          refresh().then(startCountdown);
+        }
+      }, 1000);
+    }
+
+    refresh().then(startCountdown);
+  </script>
+</body>
+</html>
