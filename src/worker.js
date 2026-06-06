@@ -1,18 +1,15 @@
-// Cloudflare Pages Function — serves /api/reflectors
-// Fetches dstarusers.org (REF/DPlus network) and normalises to a common shape.
-// Add more collectors (XLX, DCS, XRF) to COLLECTORS array as they come online.
+// Cloudflare Worker — D-STAR Live Reflector Dashboard
+// Routes: GET /api/reflectors → JSON feed
+//         everything else     → static assets (public/)
 
-const SOURCES = {
-  dstarUsers: 'https://www.dstarusers.org/lastheard.php',
-};
-
-const MAX_AGE_MS = 30 * 60 * 1000; // show entries up to 30 min old
+const DSTAR_USERS_URL = 'https://www.dstarusers.org/lastheard.php';
+const MAX_AGE_MS = 30 * 60 * 1000; // entries older than 30 min are dropped
 const TOP_N = 10;
 
 // ── parsers ──────────────────────────────────────────────────────────────────
 
 function parseTimestamp(str) {
-  // "06/06/26 23:22:42 UTC" → MM/DD/YY HH:MM:SS
+  // Format confirmed from dstarusers.org: "06/06/26 23:22:42 UTC" (MM/DD/YY)
   const m = str.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
   if (!m) return null;
   return new Date(`20${m[3]}-${m[1]}-${m[2]}T${m[4]}:${m[5]}:${m[6]}Z`);
@@ -20,16 +17,14 @@ function parseTimestamp(str) {
 
 function parseDstarUsers(html) {
   const entries = [];
-  // Split at row boundaries — works regardless of class names or div/table layout
   const rows = html.split(/<\/tr\s*>/i);
 
   for (const row of rows) {
-    // Callsign is always linked to QRZ
+    // Callsign linked to QRZ
     const callMatch = row.match(/qrz\.com\/callsign\/([A-Z0-9]+(?:\/[A-Z0-9]+)?)/i);
-    // Timestamp format confirmed: "06/06/26 23:22:42 UTC"
+    // UTC timestamp
     const timeMatch = row.match(/(\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+UTC)/i);
-    // Reporting node: "REF081 C 2 Meters DVD" — module must be standalone letter
-    // \b after [A-Z] prevents matching "D" from "Dongle User"
+    // Reporting node e.g. "REF081 C" — \b prevents matching "D" inside "Dongle"
     const nodeMatch = row.match(/\b(REF|XLX|DCS|XRF)\s*(\d{2,4})\s+([A-Z])\b/);
 
     if (timeMatch && nodeMatch) {
@@ -51,14 +46,13 @@ function parseDstarUsers(html) {
 // ── aggregation ───────────────────────────────────────────────────────────────
 
 function buildReflectorList(entries) {
-  const now = Date.now();
+  const now    = Date.now();
   const cutoff = now - MAX_AGE_MS;
+  const byKey  = new Map();
 
-  // Keep only the most-recent transmission per (reflector + module)
-  const byKey = new Map();
   for (const e of entries) {
     if (e.ts.getTime() < cutoff) continue;
-    const key = `${e.protocol}${e.number}-${e.module}`;
+    const key  = `${e.protocol}${e.number}-${e.module}`;
     const prev = byKey.get(key);
     if (!prev || e.ts > prev.ts) byKey.set(key, e);
   }
@@ -78,30 +72,17 @@ function buildReflectorList(entries) {
     }));
 }
 
-// ── handler ───────────────────────────────────────────────────────────────────
+// ── /api/reflectors handler ───────────────────────────────────────────────────
 
-export async function onRequest(context) {
-  const { request } = context;
-
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin':  '*',
-        'Access-Control-Allow-Methods': 'GET',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
-  }
-
+async function handleReflectors() {
   const fetchStart = Date.now();
   const sourceMeta = {};
   let allEntries = [];
 
-  // ── REF via dstarusers.org ────────────────────────────────────────────────
+  // REF network via dstarusers.org
   try {
-    const res = await fetch(SOURCES.dstarUsers, {
+    const res = await fetch(DSTAR_USERS_URL, {
       headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
-      cf: { cacheTtl: 55, cacheEverything: false },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
@@ -112,16 +93,13 @@ export async function onRequest(context) {
     sourceMeta.ref = { status: 'error', message: err.message };
   }
 
-  // ── Future sources go here (XLX, DCS, XRF) ───────────────────────────────
-  // sourceMeta.xlx = { status: 'pending' };
-
-  const reflectors = buildReflectorList(allEntries);
+  // Future sources: XLX, DCS, XRF — push into allEntries here
 
   const payload = {
-    reflectors,
-    sources:     sourceMeta,
-    updatedAt:   new Date().toISOString(),
-    fetchMs:     Date.now() - fetchStart,
+    reflectors: buildReflectorList(allEntries),
+    sources:    sourceMeta,
+    updatedAt:  new Date().toISOString(),
+    fetchMs:    Date.now() - fetchStart,
   };
 
   return new Response(JSON.stringify(payload, null, 2), {
@@ -132,3 +110,29 @@ export async function onRequest(context) {
     },
   });
 }
+
+// ── main fetch handler ────────────────────────────────────────────────────────
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin':  '*',
+          'Access-Control-Allow-Methods': 'GET',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
+    if (url.pathname === '/api/reflectors') {
+      return handleReflectors();
+    }
+
+    // Everything else: serve from public/ via Workers Assets binding
+    return env.ASSETS.fetch(request);
+  },
+};

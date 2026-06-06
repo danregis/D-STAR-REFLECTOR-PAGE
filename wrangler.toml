@@ -1,3 +1,7 @@
 name = "reflector"
-pages_build_output_dir = "public"
+main = "src/worker.js"
 compatibility_date = "2024-06-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"

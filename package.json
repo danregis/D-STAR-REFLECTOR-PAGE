@@ -1,11 +1,11 @@
 {
-  "name": "dstar-reflector-dashboard",
+  "name": "reflector",
   "version": "1.0.0",
   "private": true,
-  "description": "Live D-STAR reflector activity dashboard — Cloudflare Pages",
+  "description": "Live D-STAR reflector activity dashboard — Cloudflare Worker",
   "scripts": {
-    "dev":    "wrangler pages dev public --compatibility-date=2024-06-01",
-    "deploy": "wrangler pages deploy public --project-name=reflector"
+    "dev":    "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "wrangler": "^3.60.0"
