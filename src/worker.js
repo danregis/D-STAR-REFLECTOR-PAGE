@@ -25,7 +25,7 @@ function parseREFTimestamp(str) {
 function parseDstarUsers(html) {
   const entries = [];
   for (const row of html.split(/<\/tr\s*>/i)) {
-    const callMatch   = row.match(/qrz\.com\/callsign\/([A-Z0-9]+(?:\/[A-Z0-9]+)?)/i);
+    const callMatch   = row.match(/qrz\.com\/db\/([A-Z0-9]+)/i);
     const timeMatch   = row.match(/(\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+UTC)/i);
     // Standalone module letter — \b prevents matching "D" inside "Dongle"
     const nodeMatch   = row.match(/\b(REF|XLX|DCS|XRF)\s*(\d{2,4})\s+([A-Z])\b/);
