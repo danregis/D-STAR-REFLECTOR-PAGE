@@ -2,7 +2,7 @@
 
 A live activity dashboard for D-STAR digital voice reflectors, built as a Cloudflare Worker with a static frontend. No server required — runs entirely on Cloudflare's edge network.
 
-**Live at:** https://dstar.dregis.com
+**Live at:** https://dstar.danregis.com
 
 ---
 
