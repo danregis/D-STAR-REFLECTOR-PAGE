@@ -54,6 +54,60 @@ async function fetchREF() {
   return parseDstarUsers(await res.text());
 }
 
+// ── XLX via network API (xlxapi.rlx.lu) ──────────────────────────────────────
+// The API returns XML: <name>, <dashboardurl>, <lastcontact> (Unix timestamp)
+// We filter to reflectors active in the last 30 min, then probe their dashboards.
+
+function parseXLXAPIList(xml) {
+  const list   = [];
+  const blockRe = /<reflector>([\s\S]*?)<\/reflector>/g;
+  let m;
+  while ((m = blockRe.exec(xml)) !== null) {
+    const block       = m[1];
+    const name        = block.match(/<name>([^<]+)<\/name>/)?.[1]?.trim();
+    const dashUrl     = block.match(/<dashboardurl>([^<]+)<\/dashboardurl>/)?.[1]?.trim();
+    const lastContact = parseInt(block.match(/<lastcontact>(\d+)<\/lastcontact>/)?.[1] || '0', 10);
+    if (name && dashUrl && lastContact > 0) list.push({ name, dashUrl, lastContact });
+  }
+  return list;
+}
+
+async function fetchXLXFromAPI() {
+  const res = await fetch('http://xlxapi.rlx.lu/api.php?do=GetReflectorList', {
+    headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) throw new Error(`XLX API HTTP ${res.status}`);
+
+  const now    = Math.floor(Date.now() / 1000);
+  const recent = parseXLXAPIList(await res.text())
+    .filter(r => now - r.lastContact < 1800)   // active in last 30 min
+    .sort((a, b) => b.lastContact - a.lastContact)
+    .slice(0, 25);                              // probe at most 25
+
+  if (recent.length === 0) {
+    return { entries: [], meta: { xlx: { status: 'ok', active: 0, responded: 0 } } };
+  }
+
+  const probeResults = await Promise.allSettled(
+    recent.map(r => fetchOneXLX(r.name, r.dashUrl))
+  );
+
+  const allEntries = [];
+  let responded = 0;
+  for (const r of probeResults) {
+    if (r.status === 'fulfilled' && r.value.entries.length > 0) {
+      allEntries.push(...r.value.entries);
+      responded++;
+    }
+  }
+
+  return {
+    entries: allEntries,
+    meta: { xlx: { status: 'ok', active: recent.length, responded } },
+  };
+}
+
 // ── XLX / DCS / XRF parser (xlxd dashboard software) ────────────────────────
 // Timestamp format: "DD.MM.YYYY HH:MM"  (European, no seconds)
 // Callsign QRZ link: qrz.com/db/CALLSIGN  (different from dstarusers.org)
@@ -182,9 +236,11 @@ function buildReflectorList(entries) {
 async function handleReflectors(env) {
   const fetchStart = Date.now();
 
-  const [refResult, xlxResult] = await Promise.allSettled([
+  // Run all collectors in parallel
+  const [refResult, xlxApiResult, xlxEnvResult] = await Promise.allSettled([
     fetchREF(),
-    fetchXLX(env),
+    fetchXLXFromAPI(),   // global XLX via xlxapi.rlx.lu
+    fetchXLX(env),       // user-configured via XLX_REFLECTORS (XLX/DCS/XRF)
   ]);
 
   const allEntries = [];
@@ -197,11 +253,16 @@ async function handleReflectors(env) {
     sources.ref = { status: 'error', message: refResult.reason?.message };
   }
 
-  if (xlxResult.status === 'fulfilled') {
-    allEntries.push(...xlxResult.value.entries);
-    Object.assign(sources, xlxResult.value.meta);
+  if (xlxApiResult.status === 'fulfilled') {
+    allEntries.push(...xlxApiResult.value.entries);
+    Object.assign(sources, xlxApiResult.value.meta);
   } else {
-    sources.xlx = { status: 'error', message: xlxResult.reason?.message };
+    sources.xlx = { status: 'error', message: xlxApiResult.reason?.message };
+  }
+
+  if (xlxEnvResult.status === 'fulfilled') {
+    allEntries.push(...xlxEnvResult.value.entries);
+    Object.assign(sources, xlxEnvResult.value.meta);
   }
 
   return new Response(JSON.stringify({
@@ -223,14 +284,18 @@ async function handleReflectors(env) {
 // Returns status + first 500 chars of body for each candidate URL.
 
 const DEBUG_SOURCES = [
-  { key: 'dstarusers_ref',  url: 'https://www.dstarusers.org/lastheard.php' },
-  { key: 'xreflector_neu3', url: 'http://xreflector.net/neu3/' },
-  { key: 'xreflector_root', url: 'http://xreflector.net/' },
-  { key: 'xlxapi_list',     url: 'http://xlxapi.rlx.lu/api.php?do=GetReflectorList' },
-  { key: 'xlxapi_lastheard',url: 'http://xlxapi.rlx.lu/api.php?do=GetLastHeardList' },
-  { key: 'dcs009',          url: 'http://dcs009.xreflector.net/' },
-  { key: 'dcs003',          url: 'http://dcs003.xreflector.net/' },
-  { key: 'xlx302',          url: 'http://xlx302.xreflector.net/' },
+  { key: 'dstarusers_ref',      url: 'https://www.dstarusers.org/lastheard.php' },
+  { key: 'xlxapi_list',         url: 'http://xlxapi.rlx.lu/api.php?do=GetReflectorList' },
+  // xreflector.net DCS investigation — chasing the inner frame content
+  { key: 'xreflector_www',      url: 'http://www.xreflector.net/' },
+  { key: 'xreflector_dcs',      url: 'http://www.xreflector.net/dcs.php' },
+  { key: 'xreflector_status',   url: 'http://www.xreflector.net/status.php' },
+  { key: 'xreflector_lh',       url: 'http://www.xreflector.net/lastheard.php' },
+  { key: 'xreflector_users',    url: 'http://www.xreflector.net/pgs/users.php' },
+  { key: 'xreflector_main',     url: 'http://www.xreflector.net/main.php' },
+  // Try first XLX from API list to confirm dashboard scraping works
+  { key: 'xlx000_dashboard',    url: 'http://xlx000.dmr.net.br/pgs/users.php' },
+  { key: 'xlx000_root',         url: 'http://xlx000.dmr.net.br/' },
 ];
 
 async function handleDebug() {
