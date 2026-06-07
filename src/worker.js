@@ -95,16 +95,22 @@ async function fetchXLXFromAPI() {
 
   const allEntries = [];
   let responded = 0;
+  let newestMs  = 0;
   for (const r of probeResults) {
     if (r.status === 'fulfilled' && r.value.entries.length > 0) {
       allEntries.push(...r.value.entries);
       responded++;
+      for (const e of r.value.entries) {
+        if (e.ts.getTime() > newestMs) newestMs = e.ts.getTime();
+      }
     }
   }
 
+  const newestMinsAgo = newestMs > 0 ? Math.round((Date.now() - newestMs) / 60000) : null;
+
   return {
     entries: allEntries,
-    meta: { xlx: { status: 'ok', active: recent.length, responded } },
+    meta: { xlx: { status: 'ok', active: recent.length, responded, newestMinsAgo } },
   };
 }
 
@@ -156,7 +162,7 @@ async function fetchOneXLX(reflectorId, baseUrl) {
     try {
       const res = await fetch(`${base}${path}`, {
         headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(5000),
       });
       const html = await res.text();
       const entries = parseXLXDashboard(html, reflectorId);
@@ -234,10 +240,9 @@ function buildReflectorList(entries) {
 
 // ── /api/reflectors handler ───────────────────────────────────────────────────
 
-async function handleReflectors(env) {
+async function collectReflectorData(env) {
   const fetchStart = Date.now();
 
-  // Run all collectors in parallel
   const [refResult, xlxApiResult, xlxEnvResult] = await Promise.allSettled([
     fetchREF(),
     fetchXLXFromAPI(),   // global XLX via xlxapi.rlx.lu
@@ -278,6 +283,28 @@ async function handleReflectors(env) {
       'Cache-Control':               'public, max-age=55, s-maxage=55',
     },
   });
+}
+
+// Stale-while-revalidate: serve cached response instantly, refresh in background.
+// First cold request takes ~9s; every subsequent request within 55s is instant.
+async function handleReflectors(request, env, ctx) {
+  const cache = caches.default;
+
+  const cached = await cache.match(request);
+  if (cached) {
+    // Serve stale immediately; refresh cache in background for the next caller
+    ctx.waitUntil(
+      collectReflectorData(env)
+        .then(r => cache.put(request, r))
+        .catch(() => { /* ignore background refresh failures */ })
+    );
+    return cached;
+  }
+
+  // Cold cache: wait for fresh data, then store and return it
+  const response = await collectReflectorData(env);
+  ctx.waitUntil(cache.put(request, response.clone()));
+  return response;
 }
 
 // ── /api/debug — probe candidate sources from CF edge ────────────────────────
@@ -332,7 +359,7 @@ async function handleDebug() {
 // ── main fetch handler ────────────────────────────────────────────────────────
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -345,7 +372,7 @@ export default {
       });
     }
 
-    if (pathname === '/api/reflectors') return handleReflectors(env);
+    if (pathname === '/api/reflectors') return handleReflectors(request, env, ctx);
     if (pathname === '/api/debug')      return handleDebug();
 
     return env.ASSETS.fetch(request);
