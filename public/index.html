@@ -199,6 +199,22 @@
     .source-pill.error { border-color: rgba(248,81,73,.4);  color: var(--red); }
     .source-pill.pending { color: var(--muted); }
 
+    /* ── Refresh button ─────────────────────────────────────────────────── */
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .refresh-btn:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
+    .refresh-btn:disabled { opacity: 0.45; cursor: default; }
+
     /* ── Responsive ──────────────────────────────────────────────────────── */
     @media (max-width: 560px) {
       .hide-mobile { display: none; }
@@ -214,7 +230,7 @@
         <span class="dot" id="dot"></span>
         <span id="updated">—</span>
       </span>
-      <span>Refresh in <strong id="countdown">30</strong>s</span>
+      <button class="refresh-btn" id="refresh-btn" title="Click to refresh now">↺ <span id="countdown">30</span>s</button>
     </div>
   </header>
 
@@ -253,6 +269,25 @@
       return 'stale';
     }
 
+    // ── Source pill text ────────────────────────────────────────────────────
+
+    function fmtPill(v) {
+      if (v.status === 'error') return `✗ ${v.message || 'error'}`;
+      if (v.status !== 'ok')   return 'pending';
+      // REF / env-configured reflectors report a flat entry count
+      if (v.entries !== undefined) return `✓ ${v.entries} entries`;
+      // XLX API reports active count + responded + optional age
+      if (v.active !== undefined) {
+        let t = `✓ ${v.active} online · ${v.responded ?? 0} active`;
+        if (v.newestMinsAgo != null && v.newestMinsAgo >= 0) {
+          const m = v.newestMinsAgo;
+          t += ` · last ${m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`} ago`;
+        }
+        return t;
+      }
+      return '✓';
+    }
+
     // ── Render ──────────────────────────────────────────────────────────────
 
     function renderTable(data) {
@@ -270,11 +305,7 @@
       // Source pills
       const pills = document.getElementById('source-pills');
       pills.innerHTML = Object.entries(sources).map(([k, v]) =>
-        `<span class="source-pill ${v.status}">${k.toUpperCase()} ${
-          v.status === 'ok'    ? `✓ ${v.entries} entries` :
-          v.status === 'error' ? `✗ ${v.message || 'error'}` :
-          'pending'
-        }</span>`
+        `<span class="source-pill ${v.status}">${k.toUpperCase()} ${fmtPill(v)}</span>`
       ).join('');
 
       if (!reflectors.length) {
@@ -351,6 +382,7 @@
       clearInterval(timer);
       countdown = EVERY;
       document.getElementById('countdown').textContent = countdown;
+      document.getElementById('refresh-btn').disabled = false;
 
       timer = setInterval(() => {
         countdown--;
@@ -362,6 +394,15 @@
         }
       }, 1000);
     }
+
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      const btn = document.getElementById('refresh-btn');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      clearInterval(timer);
+      document.getElementById('countdown').textContent = '…';
+      refresh().then(startCountdown);
+    });
 
     refresh().then(startCountdown);
   </script>
