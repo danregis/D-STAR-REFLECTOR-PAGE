@@ -90,7 +90,7 @@ async function fetchXLXFromAPI() {
   }
 
   const probeResults = await Promise.allSettled(
-    recent.map(r => fetchOneXLX(r.name, r.dashUrl))
+    recent.map(r => fetchOneXLX(r.name, r.dashUrl, r.lastContact))
   );
 
   const allEntries = [];
@@ -125,21 +125,30 @@ function parseXLXTimestamp(str) {
   return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00Z`);
 }
 
-function parseXLXDashboard(html, reflectorId) {
+// lastContactMs: Unix timestamp (ms) from the XLX API registry — guaranteed UTC.
+// Used as fallback when the dashboard timestamp appears to be in local time
+// (detected by being more than 5 min in the future relative to the worker clock).
+function parseXLXDashboard(html, reflectorId, lastContactMs = 0) {
   const protoMatch = reflectorId.match(/^(REF|XLX|DCS|XRF)/i);
   const protocol   = protoMatch ? protoMatch[1].toUpperCase() : 'XLX';
   const number     = reflectorId.replace(/^[A-Za-z]+/, '').padStart(3, '0');
   const entries    = [];
+  const now        = Date.now();
 
   for (const row of html.split(/<\/tr\s*>/i)) {
     const callMatch   = row.match(/qrz\.com\/db\/([A-Z0-9]+)/i);
     const timeMatch   = row.match(/\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}/);
-    // Module is in the last <td> cell (width="30") — just a single letter
     const moduleMatch = row.match(/width="30"[^>]*>\s*([A-Z])\s*<\/td>/i);
 
     if (callMatch && timeMatch && moduleMatch) {
-      const ts = parseXLXTimestamp(timeMatch[0]);
+      let ts = parseXLXTimestamp(timeMatch[0]);
       if (!ts) continue;
+      // Dashboard may show server-local time instead of UTC.
+      // If timestamp is >5 min in the future it can't be UTC — fall back to the
+      // registry's lastcontact (Unix UTC) which is accurate within the ping interval.
+      if (ts.getTime() > now + 5 * 60 * 1000) {
+        ts = new Date(lastContactMs || now);
+      }
       entries.push({
         callsign: callMatch[1].toUpperCase(),
         ts,
@@ -153,8 +162,9 @@ function parseXLXDashboard(html, reflectorId) {
   return entries;
 }
 
-async function fetchOneXLX(reflectorId, baseUrl) {
-  const base = baseUrl.replace(/\/$/, '');
+async function fetchOneXLX(reflectorId, baseUrl, lastContact = 0) {
+  const base          = baseUrl.replace(/\/$/, '');
+  const lastContactMs = lastContact * 1000;
   // Try the users sub-page first, then the main page.
   // Accept any HTTP response (including 5xx) — some servers return 500 but
   // still emit the full table HTML before the PHP error fires.
@@ -165,7 +175,7 @@ async function fetchOneXLX(reflectorId, baseUrl) {
         signal: AbortSignal.timeout(5000),
       });
       const html = await res.text();
-      const entries = parseXLXDashboard(html, reflectorId);
+      const entries = parseXLXDashboard(html, reflectorId, lastContactMs);
       if (entries.length > 0) return { entries };
     } catch { /* try next path */ }
   }
