@@ -208,6 +208,12 @@
       margin-top: 3px;
       line-height: 1.2;
     }
+    .net-label a {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px dotted rgba(63,185,80,.45);
+    }
+    .net-label a:hover { border-bottom-color: var(--green); }
 
     /* ── Refresh button ─────────────────────────────────────────────────── */
     .refresh-btn {
@@ -285,106 +291,105 @@
     // [day, hour, minute, 'Net Name', 'ReflectorID', 'Module']
     const SCHEDULE = [
       // SATURDAY
-      [6,  8,  0, 'SCARS Full Net / AM Connection',        'XLX073','J'],
-      [6,  9,  0, '6 Alpha D-STAR Net',                    'REF006','A'],
-      [6,  9, 30, 'National Capitol Region Net',            'REF016','B'],
-      [6, 12,  0, 'SOUTHCARS Intercontinental Net',        'XLX073','J'],
-      [6, 13,  0, 'Italian Language Net',                  'REF007','A'],
-      [6, 19,  0, 'SCARS Open Ragchew',                    'XLX073','J'],
-      [6, 20,  0, 'D-STAR HF Net',                         'REF030','C'],
-      [6, 20,  0, 'Young Operators Digital Voice Net',     'XRF757','A'],
-      [6, 20, 30, 'Coastal Carolinas D-STAR Net',          'REF061','C'],
-      [6, 20, 30, 'Mid-Atlantic States D-RATS',            'REF062','D'],
-      [6, 21,  0, 'Arizona D-STAR Net',                    'REF009','C'],
-      [6, 21,  0, 'D-STAR Users Group',                   'XRF002','A'],
-      [6, 21,  0, 'International D-STAR Net',              'REF091','C'],
-      [6, 21,  0, 'Ohio State-Wide D-STAR Net',            'XRF038','A'],
-      [6, 21,  0, 'Saturday Evening D-Star Net',           'REF024','A'],
-      [6, 21, 30, 'Minnesota D-STAR Net',                  'REF053','A'],
-      [6, 21, 30, 'South Counties Emergency Repeater Net', 'REF020','B'],
-      [6, 23,  0, 'FWARC D-STAR Net',                     'REF035','C'],
-      [6, 23,  0, 'Northern Utah Technical Society',       'REF029','C'],
-      [6, 23,  0, 'Saturday Night D-STAR Net',             'REF029','A'],
-      [6, 23,  0, 'Wisconsin D-STAR Net',                  'REF019','B'],
+      [6,  8,  0, 'SCARS Full Net / AM Connection',        'XLX073','J', 'https://scarsvoip.com/'],
+      [6,  9,  0, '6 Alpha D-STAR Net',                    'REF006','A', null],
+      [6,  9, 30, 'National Capitol Region Net',            'REF016','B', null],
+      [6, 12,  0, 'SOUTHCARS Intercontinental Net',        'XLX073','J', 'https://scarsvoip.com/'],
+      [6, 13,  0, 'Italian Language Net',                  'REF007','A', 'http://www.iq2gm.com/'],
+      [6, 19,  0, 'SCARS Open Ragchew',                    'XLX073','J', 'https://scarsvoip.com/'],
+      [6, 20,  0, 'D-STAR HF Net',                         'REF030','C', 'http://www.dstarinfo.com/DSTARHFNet.aspx'],
+      [6, 20,  0, 'Young Operators Digital Voice Net',     'XRF757','A', null],
+      [6, 20, 30, 'Coastal Carolinas D-STAR Net',          'REF061','C', null],
+      [6, 20, 30, 'Mid-Atlantic States D-RATS',            'REF062','D', null],
+      [6, 21,  0, 'Arizona D-STAR Net',                    'REF009','C', null],
+      [6, 21,  0, 'D-STAR Users Group',                   'XRF002','A', null],
+      [6, 21,  0, 'International D-STAR Net',              'REF091','C', 'https://www.facebook.com/groups/internationaldstar/'],
+      [6, 21,  0, 'Ohio State-Wide D-STAR Net',            'XRF038','A', null],
+      [6, 21,  0, 'Saturday Evening D-Star Net',           'REF024','A', 'https://mawcg.org/nets/'],
+      [6, 21, 30, 'Minnesota D-STAR Net',                  'REF053','A', null],
+      [6, 21, 30, 'South Counties Emergency Repeater Net', 'REF020','B', 'http://scernet.org/'],
+      [6, 23,  0, 'FWARC D-STAR Net',                     'REF035','C', 'http://fwarc.org/'],
+      [6, 23,  0, 'Northern Utah Technical Society',       'REF029','C', null],
+      [6, 23,  0, 'Saturday Night D-STAR Net',             'REF029','A', 'http://wa7dre.org/net/'],
+      [6, 23,  0, 'Wisconsin D-STAR Net',                  'REF019','B', null],
       // SUNDAY
-      [0,  0,  0, 'BC to SF Net',                          'REF014','A'],
-      [0, 11,  0, 'D-STAR HF Net',                         'REF030','C'],
-      [0, 14,  0, 'Military Veteran Net',                  'REF026','A'],
-      [0, 16,  0, 'Hungarian Language Net',                'REF042','C'],
-      [0, 19,  0, 'Sunday Round Table Net',                'REF006','A'],
-      [0, 19,  0, 'SCARS Open Ragchew',                    'XLX073','J'],
+      [0,  0,  0, 'BC to SF Net',                          'REF014','A', null],
+      [0, 11,  0, 'D-STAR HF Net',                         'REF030','C', 'http://www.dstarinfo.com/DSTARHFNet.aspx'],
+      [0, 14,  0, 'Military Veteran Net',                  'REF026','A', null],
+      [0, 16,  0, 'Hungarian Language Net',                'REF042','C', null],
+      [0, 19,  0, 'Sunday Round Table Net',                'REF006','A', null],
+      [0, 19,  0, 'SCARS Open Ragchew',                    'XLX073','J', 'https://scarsvoip.com/'],
       // MONDAY
-      [1, 20, 30, 'RACES/MARC Digital Voice Net',          'XLX307','D'],
-      [1, 21,  0, 'D-Star Net',                            'REF020','A'],
-      [1, 21,  0, 'Northern Ontario D-STAR Net',           'XRF103','B'],
-      [1, 22,  0, 'North Carolina D-Star Net',             'REF054','A'],
+      [1, 20, 30, 'RACES/MARC Digital Voice Net',          'XLX307','D', null],
+      [1, 21,  0, 'D-Star Net',                            'REF020','A', null],
+      [1, 21,  0, 'Northern Ontario D-STAR Net',           'XRF103','B', null],
+      [1, 22,  0, 'North Carolina D-Star Net',             'REF054','A', null],
       // TUESDAY
-      [2, 20, 30, 'Free Mason D-Star Net',                 'REF038','A'],
-      [2, 20, 30, 'Region III Auxiliary Comms Service',    'REF062','B'],
-      [2, 21,  0, '100 Watts & a Wire D-STAR',             'XRF002','A'],
-      [2, 21,  0, 'New England Amateur D-STAR Net',        'REF069','C'],
-      [2, 21,  0, 'Powersports Net',                       'XRF555','A'],
-      [2, 21, 30, 'Ark-La-Tex D-STAR Net',                 'REF048','B'],
-      [2, 21, 30, 'Treasure Coast DART Group',             'REF078','C'],
-      [2, 21, 30, 'Tri-State Amateur D-STAR Net',          'REF001','C'],
-      [2, 22,  0, 'North Carolina D-STAR Net',             'REF054','C'],
-      [2, 22,  0, 'Texas D-STAR Net',                      'REF004','B'],
-      [2, 22, 30, 'Alabama D-STAR Net',                    'REF058','B'],
-      [2, 23,  0, 'Colorado D-STAR Net',                   'REF035','B'],
-      [2, 23,  0, 'D-STAR Net of SE Louisiana',            'REF048','C'],
+      [2, 20, 30, 'Free Mason D-Star Net',                 'REF038','A', null],
+      [2, 20, 30, 'Region III Auxiliary Comms Service',    'REF062','B', null],
+      [2, 21,  0, '100 Watts & a Wire D-STAR',             'XRF002','A', null],
+      [2, 21,  0, 'New England Amateur D-STAR Net',        'REF069','C', 'https://ne-dstar.org/'],
+      [2, 21,  0, 'Powersports Net',                       'XRF555','A', null],
+      [2, 21, 30, 'Ark-La-Tex D-STAR Net',                 'REF048','B', null],
+      [2, 21, 30, 'Treasure Coast DART Group',             'REF078','C', null],
+      [2, 21, 30, 'Tri-State Amateur D-STAR Net',          'REF001','C', 'http://www.big535.com/'],
+      [2, 22,  0, 'North Carolina D-STAR Net',             'REF054','C', null],
+      [2, 22,  0, 'Texas D-STAR Net',                      'REF004','B', null],
+      [2, 22, 30, 'Alabama D-STAR Net',                    'REF058','B', 'http://k4dso.com/'],
+      [2, 23,  0, 'Colorado D-STAR Net',                   'REF035','B', null],
+      [2, 23,  0, 'D-STAR Net of SE Louisiana',            'REF048','C', null],
       // WEDNESDAY
-      [3,  0,  0, 'PAPA System D-Star Net',                'REF012','A'],
+      [3,  0,  0, 'PAPA System D-Star Net',                'REF012','A', 'http://papasys.net/'],
       [3, 21,  0, 'Backyard Repeater Owners / SE Michigan','REF089','C'],
-      [3, 21,  0, 'Mid-Atlantic Auxiliary Comms Service',  'REF062','A'],
-      [3, 21,  0, 'Wisconsin D-STAR Net',                  'REF019','B'],
-      [3, 22,  0, 'Florida State-Wide D-STAR DV Net',      'REF004','B'],
-      [3, 22,  0, 'National Capital Region Net (DC)',      'REF062','A'],
-      [3, 22,  0, 'Worldwide DVAP Net',                    'REF014','C'],
-      [3, 22, 30, 'Illinois Digital Net',                  'XRF334','G'],
-      [3, 23,  0, 'Ham Nation After Show D-STAR Net',      'REF014','C'],
-      [3, 23,  0, 'Illinois State D-STAR Net',             'REF051','D'],
+      [3, 21,  0, 'Mid-Atlantic Auxiliary Comms Service',  'REF062','A', null],
+      [3, 21,  0, 'Wisconsin D-STAR Net',                  'REF019','B', null],
+      [3, 22,  0, 'Florida State-Wide D-STAR DV Net',      'REF004','B', 'http://www.florida-dstar.info/'],
+      [3, 22,  0, 'National Capital Region Net (DC)',      'REF062','A', null],
+      [3, 22,  0, 'Worldwide DVAP Net',                    'REF014','C', null],
+      [3, 22, 30, 'Illinois Digital Net',                  'XRF334','G', null],
+      [3, 23,  0, 'Ham Nation After Show D-STAR Net',      'REF014','C', 'http://www.hamnationdstar.net/'],
+      [3, 23,  0, 'Illinois State D-STAR Net',             'REF051','D', null],
       // THURSDAY
-      [4,  0,  0, 'Puget Sound D-STAR Social Net',         'REF035','C'],
-      [4, 19,  0, 'SCARS Thursday Information Net',        'XLX073','J'],
-      [4, 20,  0, 'Kentucky D-STAR Net',                   'REF056','B'],
-      [4, 21,  0, 'Indiana State D-STAR Net',              'REF024','B'],
-      [4, 22,  0, 'Florida D-STAR Net',                    'REF037','C'],
-      [4, 22, 30, 'Pacific Division D-Star ARES Net',      'XRF014','B'],
-      [4, 22, 30, 'Round-the-World QSO Net',               'XRF038','D'],
-      [4, 23,  0, 'CERT DSTAR Net',                        'REF058','A'],
-      [4, 23,  0, 'Nebraska D-Star Net',                   'REF002','C'],
-      [4, 23,  0, 'New Mexico D-STAR Net',                 'REF055','A'],
-      [4, 23,  0, 'Thursday Night D-STAR Round Table',     'XRF002','A'],
-      [4, 23,  0, 'W6DHS Global Village Net',              'REF001','C'],
+      [4,  0,  0, 'Puget Sound D-STAR Social Net',         'REF035','C', null],
+      [4, 19,  0, 'SCARS Thursday Information Net',        'XLX073','J', 'https://scarsvoip.com/'],
+      [4, 20,  0, 'Kentucky D-STAR Net',                   'REF056','B', null],
+      [4, 21,  0, 'Indiana State D-STAR Net',              'REF024','B', null],
+      [4, 22,  0, 'Florida D-STAR Net',                    'REF037','C', null],
+      [4, 22, 30, 'Pacific Division D-Star ARES Net',      'XRF014','B', null],
+      [4, 22, 30, 'Round-the-World QSO Net',               'XRF038','D', null],
+      [4, 23,  0, 'CERT DSTAR Net',                        'REF058','A', 'https://sites.google.com/site/certdstar/home'],
+      [4, 23,  0, 'Nebraska D-Star Net',                   'REF002','C', null],
+      [4, 23,  0, 'New Mexico D-STAR Net',                 'REF055','A', null],
+      [4, 23,  0, 'Thursday Night D-STAR Round Table',     'XRF002','A', 'http://www.papasys.com/'],
+      [4, 23,  0, 'W6DHS Global Village Net',              'REF001','C', null],
       // FRIDAY
-      [5,  7,  0, 'Australian D-Star Net',                 'REF003','C'],
-      [5,  9, 30, 'Georgia Public Health Net',             'REF030','B'],
-      [5, 15, 30, 'Dutch Net',                             'XRF008','B'],
-      [5, 21,  0, 'D-STAR Trains and Railroads Net',       'REF026','A'],
-      [5, 22,  0, 'Canadian D-STAR Net',                   'XRF103','B'],
-      [5, 22,  0, 'Kids in Amateur Radio',                 'REF012','C'],
-      [5, 22, 30, 'Memphis Digital ARC Net',               'REF058','A'],
+      [5,  7,  0, 'Australian D-Star Net',                 'REF003','C', 'https://www.dstar.org.au/about/nets/'],
+      [5,  9, 30, 'Georgia Public Health Net',             'REF030','B', null],
+      [5, 15, 30, 'Dutch Net',                             'XRF008','B', null],
+      [5, 21,  0, 'D-STAR Trains and Railroads Net',       'REF026','A', null],
+      [5, 22,  0, 'Canadian D-STAR Net',                   'XRF103','B', null],
+      [5, 22,  0, 'Kids in Amateur Radio',                 'REF012','C', 'http://www.dstarinfo.com/kids-in-amateur-radio-d-star-net.aspx'],
+      [5, 22, 30, 'Memphis Digital ARC Net',               'REF058','A', 'https://sites.google.com/site/memphisdstar/d-star-net'],
     ];
 
-    // Return Map<"REF030-C", "Net Name"> for nets currently on air (±30 min, Eastern time).
+    // Return Map<"REF030-C", [{name,url}]> for nets currently on air (±30 min, Eastern time).
     function getActiveNets() {
       const month = new Date().getUTCMonth(); // 0-based
       const etOff = (month >= 2 && month <= 10) ? -4 : -5; // EDT or EST
       const etMs  = Date.now() + etOff * 3600000;
       const et    = new Date(etMs);
-      // Minutes since Sunday midnight ET — used for week-spanning comparison
       const nowWeekMins = et.getUTCDay() * 1440 + et.getUTCHours() * 60 + et.getUTCMinutes();
       const WEEK  = 7 * 1440;
       const WIN   = 30; // ± minutes
       const result = new Map();
-      for (const [day, h, m, name, ref, mod] of SCHEDULE) {
+      for (const [day, h, m, name, ref, mod, url = null] of SCHEDULE) {
         const netWeekMins = day * 1440 + h * 60 + m;
         let diff = Math.abs(nowWeekMins - netWeekMins);
-        if (diff > WEEK / 2) diff = WEEK - diff; // week wraparound (Sat night → Sun)
+        if (diff > WEEK / 2) diff = WEEK - diff;
         if (diff <= WIN) {
           const key = `${ref}-${mod}`;
-          if (result.has(key)) result.get(key).push(name);
-          else result.set(key, [name]);
+          if (result.has(key)) result.get(key).push({name, url});
+          else result.set(key, [{name, url}]);
         }
       }
       return result;
@@ -444,7 +449,10 @@
           ? `<a href="https://www.qrz.com/db/${r.lastCallsign}" target="_blank" rel="noopener noreferrer">${r.lastCallsign}</a>`
           : '—';
         const netNames = activeNets.get(`${r.id}-${r.module}`) || [];
-        const netLabel = netNames.map(n => `<span class="net-label">● ${n}</span>`).join('');
+        const netLabel = netNames.map(({name, url}) =>
+          url ? `<span class="net-label"><a href="${url}" target="_blank" rel="noopener noreferrer">● ${name}</a></span>`
+              : `<span class="net-label">● ${name}</span>`
+        ).join('');
         return `
           <tr>
             <td class="td-rank">${r.rank}</td>
@@ -492,10 +500,17 @@
         const tdId    = tr.querySelector('.td-id');
         const netNames = activeNets.get(`${r.id}-${r.module}`) || [];
         tdId.querySelectorAll('.net-label').forEach(el => el.remove());
-        for (const n of netNames) {
+        for (const {name, url} of netNames) {
           const label = document.createElement('span');
           label.className = 'net-label';
-          label.textContent = `● ${n}`;
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            a.textContent = `● ${name}`;
+            label.appendChild(a);
+          } else {
+            label.textContent = `● ${name}`;
+          }
           tdId.appendChild(label);
         }
       });
