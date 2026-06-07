@@ -231,6 +231,15 @@
     .refresh-btn:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
     .refresh-btn:disabled { opacity: 0.45; cursor: default; }
 
+    /* ── Top 24h section ─────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 24px 0 8px;
+    }
+
     /* ── Responsive ──────────────────────────────────────────────────────── */
     @media (max-width: 560px) {
       .hide-mobile { display: none; }
@@ -253,6 +262,8 @@
   <div class="table-wrap" id="content">
     <div class="state-box">Loading reflector activity…</div>
   </div>
+
+  <div id="top24h-wrap"></div>
 
   <footer>
     <div class="source-pills" id="source-pills"></div>
@@ -481,13 +492,46 @@
 
       document.getElementById('foot-right').textContent =
         `Showing ${reflectors.length} of ${reflectors.length} most-recent reflectors`;
+
+      renderTop24h(data);
+    }
+
+    function renderTop24h(data) {
+      const wrap = document.getElementById('top24h-wrap');
+      if (!data.top24h || !data.top24h.length) { wrap.innerHTML = ''; return; }
+
+      const rows = data.top24h.map(r => `
+          <tr>
+            <td class="td-rank">${r.rank}</td>
+            <td><span class="badge badge-${r.protocol}">${r.protocol}</span></td>
+            <td class="td-id">${r.id}</td>
+            <td style="text-align:center"><span class="module-circle">${r.module}</span></td>
+            <td style="text-align:right;font-size:0.78rem;color:var(--muted)">${r.qsos}</td>
+          </tr>`).join('');
+
+      wrap.innerHTML = `
+        <p class="section-label">Most Active — Last 24h</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Protocol</th>
+                <th>Reflector</th>
+                <th class="center">Mod</th>
+                <th style="text-align:right">QSOs</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
     }
 
     // Live-update time cells and net labels every second without a full re-render
     function tickTimes() {
       if (!lastData) return;
       const activeNets = getActiveNets();
-      document.querySelectorAll('tbody tr').forEach((tr, i) => {
+      document.querySelectorAll('#content tbody tr').forEach((tr, i) => {
         const r = lastData.reflectors[i];
         if (!r) return;
 

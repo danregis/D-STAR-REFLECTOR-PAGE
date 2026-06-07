@@ -221,6 +221,27 @@ async function fetchXLX(env) {
 
 // ── aggregation ───────────────────────────────────────────────────────────────
 
+function buildTop24h(entries) {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const counts = new Map();
+  for (const e of entries) {
+    if (e.ts.getTime() < cutoff) continue;
+    const key = `${e.protocol}${e.number}-${e.module}`;
+    if (!counts.has(key)) counts.set(key, { protocol: e.protocol, number: e.number, module: e.module, count: 0 });
+    counts.get(key).count++;
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((e, i) => ({
+      rank:     i + 1,
+      protocol: e.protocol,
+      id:       `${e.protocol}${e.number}`,
+      module:   e.module,
+      qsos:     e.count,
+    }));
+}
+
 function buildReflectorList(entries) {
   const now    = Date.now();
   const cutoff = now - MAX_AGE_MS;
@@ -283,6 +304,7 @@ async function collectReflectorData(env) {
 
   return new Response(JSON.stringify({
     reflectors: buildReflectorList(allEntries),
+    top24h:     buildTop24h(allEntries),
     sources,
     updatedAt:  new Date().toISOString(),
     fetchMs:    Date.now() - fetchStart,
