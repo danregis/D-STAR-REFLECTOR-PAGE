@@ -296,24 +296,31 @@ async function collectReflectorData(env) {
 }
 
 // Stale-while-revalidate: serve cached response instantly, refresh in background.
-// First cold request takes ~9s; every subsequent request within 55s is instant.
+// First cold request takes ~6s; every subsequent auto-refresh is instant.
+// ?nocache=1 bypasses the cache entirely (used by the manual refresh button)
+// so the user sees fresh data immediately after clicking, even if it takes ~6s.
 async function handleReflectors(request, env, ctx) {
-  const cache = caches.default;
+  const cache    = caches.default;
+  const url      = new URL(request.url);
+  const bypass   = url.searchParams.has('nocache');
+  // Canonical cache key — no query params so ?nocache requests still warm the cache
+  const cacheKey = new Request(url.origin + url.pathname);
 
-  const cached = await cache.match(request);
-  if (cached) {
-    // Serve stale immediately; refresh cache in background for the next caller
-    ctx.waitUntil(
-      collectReflectorData(env)
-        .then(r => cache.put(request, r))
-        .catch(() => { /* ignore background refresh failures */ })
-    );
-    return cached;
+  if (!bypass) {
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      ctx.waitUntil(
+        collectReflectorData(env)
+          .then(r => cache.put(cacheKey, r))
+          .catch(() => {})
+      );
+      return cached;
+    }
   }
 
-  // Cold cache: wait for fresh data, then store and return it
+  // Cold cache or forced bypass: fetch fresh, update cache, return to caller
   const response = await collectReflectorData(env);
-  ctx.waitUntil(cache.put(request, response.clone()));
+  ctx.waitUntil(cache.put(cacheKey, response.clone()));
   return response;
 }
 

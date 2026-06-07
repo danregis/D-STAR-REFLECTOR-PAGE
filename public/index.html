@@ -503,9 +503,9 @@
 
     // ── Fetch ───────────────────────────────────────────────────────────────
 
-    async function refresh() {
+    async function refresh(bust = false) {
       try {
-        const res = await fetch(API);
+        const res = await fetch(bust ? `${API}?nocache=1` : API);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         renderTable(await res.json());
       } catch (err) {
@@ -538,7 +538,7 @@
       btn.disabled = true;
       clearInterval(timer);
       document.getElementById('countdown').textContent = '…';
-      refresh().then(startCountdown);
+      refresh(true).then(startCountdown);  // bust cache — user expects fresh data now
     });
 
     refresh().then(startCountdown);
