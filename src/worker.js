@@ -81,9 +81,9 @@ async function fetchXLXFromAPI() {
 
   const now    = Math.floor(Date.now() / 1000);
   const recent = parseXLXAPIList(await res.text())
-    .filter(r => now - r.lastContact < 1800)   // active in last 30 min
+    .filter(r => now - r.lastContact < 14400)  // registry ping within 4 h = online
     .sort((a, b) => b.lastContact - a.lastContact)
-    .slice(0, 25);                              // probe at most 25
+    .slice(0, 40);                              // probe at most 40 in parallel
 
   if (recent.length === 0) {
     return { entries: [], meta: { xlx: { status: 'ok', active: 0, responded: 0 } } };
@@ -149,20 +149,21 @@ function parseXLXDashboard(html, reflectorId) {
 
 async function fetchOneXLX(reflectorId, baseUrl) {
   const base = baseUrl.replace(/\/$/, '');
-  // Try the users sub-page first (direct AJAX endpoint), then main page
+  // Try the users sub-page first, then the main page.
+  // Accept any HTTP response (including 5xx) — some servers return 500 but
+  // still emit the full table HTML before the PHP error fires.
   for (const path of ['/pgs/users.php', '/']) {
     try {
       const res = await fetch(`${base}${path}`, {
         headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
+        signal: AbortSignal.timeout(8000),
       });
-      if (res.ok) {
-        const html = await res.text();
-        const entries = parseXLXDashboard(html, reflectorId);
-        if (entries.length > 0) return { entries, ok: true };
-      }
+      const html = await res.text();
+      const entries = parseXLXDashboard(html, reflectorId);
+      if (entries.length > 0) return { entries };
     } catch { /* try next path */ }
   }
-  throw new Error('no reachable endpoint returned usable data');
+  throw new Error('no usable data');
 }
 
 async function fetchXLX(env) {
