@@ -153,6 +153,12 @@
     }
 
     .td-call { font-weight: 500; letter-spacing: 0.03em; }
+    .td-call a {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px dotted var(--border);
+    }
+    .td-call a:hover { border-bottom-color: var(--muted); color: var(--text); }
 
     .td-time { white-space: nowrap; font-size: 0.78rem; }
     .fresh  { color: var(--green); }
@@ -279,15 +285,18 @@
       }
 
       const rows = reflectors.map(r => {
-        const s   = secsAgo(r.lastHeardAt);
-        const cls = agoClass(s);
+        const s    = secsAgo(r.lastHeardAt);
+        const cls  = agoClass(s);
+        const call = r.lastCallsign !== '—'
+          ? `<a href="https://www.qrz.com/db/${r.lastCallsign}" target="_blank" rel="noopener noreferrer">${r.lastCallsign}</a>`
+          : '—';
         return `
           <tr>
             <td class="td-rank">${r.rank}</td>
             <td><span class="badge badge-${r.protocol}">${r.protocol}</span></td>
             <td class="td-id">${r.id}</td>
             <td style="text-align:center"><span class="module-circle">${r.module}</span></td>
-            <td class="td-call hide-mobile">${r.lastCallsign}</td>
+            <td class="td-call hide-mobile">${call}</td>
             <td class="td-time ${cls}">${fmtAgo(s)}</td>
           </tr>`;
       }).join('');
