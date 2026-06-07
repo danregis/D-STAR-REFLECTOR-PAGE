@@ -218,6 +218,51 @@ async function handleReflectors(env) {
   });
 }
 
+// ── /api/debug — probe candidate sources from CF edge ────────────────────────
+// Hit /api/debug to discover which HTTP sources are reachable and what they look like.
+// Returns status + first 500 chars of body for each candidate URL.
+
+const DEBUG_SOURCES = [
+  { key: 'dstarusers_ref',  url: 'https://www.dstarusers.org/lastheard.php' },
+  { key: 'xreflector_neu3', url: 'http://xreflector.net/neu3/' },
+  { key: 'xreflector_root', url: 'http://xreflector.net/' },
+  { key: 'xlxapi_list',     url: 'http://xlxapi.rlx.lu/api.php?do=GetReflectorList' },
+  { key: 'xlxapi_lastheard',url: 'http://xlxapi.rlx.lu/api.php?do=GetLastHeardList' },
+  { key: 'dcs009',          url: 'http://dcs009.xreflector.net/' },
+  { key: 'dcs003',          url: 'http://dcs003.xreflector.net/' },
+  { key: 'xlx302',          url: 'http://xlx302.xreflector.net/' },
+];
+
+async function handleDebug() {
+  const results = await Promise.allSettled(
+    DEBUG_SOURCES.map(async ({ key, url }) => {
+      const start = Date.now();
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'DSTARDashboard/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
+      const text = await res.text();
+      return {
+        key, url,
+        status:      res.status,
+        ok:          res.ok,
+        ms:          Date.now() - start,
+        contentType: res.headers.get('content-type') || '',
+        bodyPreview: text.slice(0, 500).replace(/\s+/g, ' '),
+      };
+    })
+  );
+
+  const report = results.map((r, i) => {
+    if (r.status === 'fulfilled') return r.value;
+    return { key: DEBUG_SOURCES[i].key, url: DEBUG_SOURCES[i].url, error: r.reason?.message };
+  });
+
+  return new Response(JSON.stringify(report, null, 2), {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}
+
 // ── main fetch handler ────────────────────────────────────────────────────────
 
 export default {
@@ -235,6 +280,7 @@ export default {
     }
 
     if (pathname === '/api/reflectors') return handleReflectors(env);
+    if (pathname === '/api/debug')      return handleDebug();
 
     return env.ASSETS.fetch(request);
   },
