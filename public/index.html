@@ -385,7 +385,11 @@
         const netWeekMins = day * 1440 + h * 60 + m;
         let diff = Math.abs(nowWeekMins - netWeekMins);
         if (diff > WEEK / 2) diff = WEEK - diff; // week wraparound (Sat night → Sun)
-        if (diff <= WIN) result.set(`${ref}-${mod}`, name);
+        if (diff <= WIN) {
+          const key = `${ref}-${mod}`;
+          if (result.has(key)) result.get(key).push(name);
+          else result.set(key, [name]);
+        }
       }
       return result;
     }
@@ -443,8 +447,8 @@
         const call    = r.lastCallsign !== '—'
           ? `<a href="https://www.qrz.com/db/${r.lastCallsign}" target="_blank" rel="noopener noreferrer">${r.lastCallsign}</a>`
           : '—';
-        const netName = activeNets.get(`${r.id}-${r.module}`);
-        const netLabel = netName ? `<span class="net-label">● ${netName}</span>` : '';
+        const netNames = activeNets.get(`${r.id}-${r.module}`) || [];
+        const netLabel = netNames.map(n => `<span class="net-label">● ${n}</span>`).join('');
         return `
           <tr>
             <td class="td-rank">${r.rank}</td>
@@ -488,15 +492,15 @@
         tdTime.textContent = fmtAgo(s);
         tdTime.className   = `td-time ${agoClass(s)}`;
 
-        // Add or remove on-air net label in real time
-        const tdId   = tr.querySelector('.td-id');
-        const netName = activeNets.get(`${r.id}-${r.module}`);
-        let   label  = tdId.querySelector('.net-label');
-        if (netName) {
-          if (!label) { label = document.createElement('span'); label.className = 'net-label'; tdId.appendChild(label); }
-          label.textContent = `● ${netName}`;
-        } else if (label) {
-          label.remove();
+        // Add or remove on-air net labels in real time (one per net)
+        const tdId    = tr.querySelector('.td-id');
+        const netNames = activeNets.get(`${r.id}-${r.module}`) || [];
+        tdId.querySelectorAll('.net-label').forEach(el => el.remove());
+        for (const n of netNames) {
+          const label = document.createElement('span');
+          label.className = 'net-label';
+          label.textContent = `● ${n}`;
+          tdId.appendChild(label);
         }
       });
     }
