@@ -1,15 +1,22 @@
 // Cloudflare Worker — D-STAR Live Reflector Dashboard
-// Routes: GET /api/reflectors → JSON feed
-//         everything else     → static assets (public/)
+//
+// Routes:
+//   GET /api/reflectors  → JSON feed of most-recently-active reflectors
+//   everything else      → static assets from public/
+//
+// Environment variables (set in Cloudflare dashboard → Settings → Variables):
+//   XLX_REFLECTORS   comma-separated "ID@BaseURL" pairs
+//                    Works for XLX, DCS, XRF — any reflector running xlxd dashboard software
+//                    Example: XLX033@https://xlx033.regasys.net,DCS007@https://dcs007.xreflector.net
 
 const DSTAR_USERS_URL = 'https://www.dstarusers.org/lastheard.php';
-const MAX_AGE_MS = 30 * 60 * 1000; // entries older than 30 min are dropped
-const TOP_N = 10;
+const MAX_AGE_MS      = 30 * 60 * 1000;
+const TOP_N           = 10;
 
-// ── parsers ──────────────────────────────────────────────────────────────────
+// ── REF parser (dstarusers.org) ──────────────────────────────────────────────
+// Timestamp format on this site: "MM/DD/YY HH:MM:SS UTC"
 
-function parseTimestamp(str) {
-  // Format confirmed from dstarusers.org: "06/06/26 23:22:42 UTC" (MM/DD/YY)
+function parseREFTimestamp(str) {
   const m = str.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
   if (!m) return null;
   return new Date(`20${m[3]}-${m[1]}-${m[2]}T${m[4]}:${m[5]}:${m[6]}Z`);
@@ -17,18 +24,14 @@ function parseTimestamp(str) {
 
 function parseDstarUsers(html) {
   const entries = [];
-  const rows = html.split(/<\/tr\s*>/i);
-
-  for (const row of rows) {
-    // Callsign linked to QRZ
-    const callMatch = row.match(/qrz\.com\/callsign\/([A-Z0-9]+(?:\/[A-Z0-9]+)?)/i);
-    // UTC timestamp
-    const timeMatch = row.match(/(\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+UTC)/i);
-    // Reporting node e.g. "REF081 C" — \b prevents matching "D" inside "Dongle"
-    const nodeMatch = row.match(/\b(REF|XLX|DCS|XRF)\s*(\d{2,4})\s+([A-Z])\b/);
+  for (const row of html.split(/<\/tr\s*>/i)) {
+    const callMatch   = row.match(/qrz\.com\/callsign\/([A-Z0-9]+(?:\/[A-Z0-9]+)?)/i);
+    const timeMatch   = row.match(/(\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+UTC)/i);
+    // Standalone module letter — \b prevents matching "D" inside "Dongle"
+    const nodeMatch   = row.match(/\b(REF|XLX|DCS|XRF)\s*(\d{2,4})\s+([A-Z])\b/);
 
     if (timeMatch && nodeMatch) {
-      const ts = parseTimestamp(timeMatch[1]);
+      const ts = parseREFTimestamp(timeMatch[1]);
       if (!ts) continue;
       entries.push({
         callsign: callMatch ? callMatch[1].toUpperCase() : '—',
@@ -41,6 +44,108 @@ function parseDstarUsers(html) {
     }
   }
   return entries;
+}
+
+async function fetchREF() {
+  const res = await fetch(DSTAR_USERS_URL, {
+    headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return parseDstarUsers(await res.text());
+}
+
+// ── XLX / DCS / XRF parser (xlxd dashboard software) ────────────────────────
+// Timestamp format: "DD.MM.YYYY HH:MM"  (European, no seconds)
+// Callsign QRZ link: qrz.com/db/CALLSIGN  (different from dstarusers.org)
+// Module cell: <td align="center" width="30">A</td>
+
+function parseXLXTimestamp(str) {
+  const m = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00Z`);
+}
+
+function parseXLXDashboard(html, reflectorId) {
+  const protoMatch = reflectorId.match(/^(REF|XLX|DCS|XRF)/i);
+  const protocol   = protoMatch ? protoMatch[1].toUpperCase() : 'XLX';
+  const number     = reflectorId.replace(/^[A-Za-z]+/, '').padStart(3, '0');
+  const entries    = [];
+
+  for (const row of html.split(/<\/tr\s*>/i)) {
+    const callMatch   = row.match(/qrz\.com\/db\/([A-Z0-9]+)/i);
+    const timeMatch   = row.match(/\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}/);
+    // Module is in the last <td> cell (width="30") — just a single letter
+    const moduleMatch = row.match(/width="30"[^>]*>\s*([A-Z])\s*<\/td>/i);
+
+    if (callMatch && timeMatch && moduleMatch) {
+      const ts = parseXLXTimestamp(timeMatch[0]);
+      if (!ts) continue;
+      entries.push({
+        callsign: callMatch[1].toUpperCase(),
+        ts,
+        protocol,
+        number,
+        module:   moduleMatch[1],
+        source:   protocol.toLowerCase(),
+      });
+    }
+  }
+  return entries;
+}
+
+async function fetchOneXLX(reflectorId, baseUrl) {
+  const base = baseUrl.replace(/\/$/, '');
+  // Try the users sub-page first (direct AJAX endpoint), then main page
+  for (const path of ['/pgs/users.php', '/']) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const entries = parseXLXDashboard(html, reflectorId);
+        if (entries.length > 0) return { entries, ok: true };
+      }
+    } catch { /* try next path */ }
+  }
+  throw new Error('no reachable endpoint returned usable data');
+}
+
+async function fetchXLX(env) {
+  const list = (env.XLX_REFLECTORS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (list.length === 0) return { entries: [], meta: {} };
+
+  const jobs = list.map(async (item) => {
+    const atIdx = item.indexOf('@');
+    if (atIdx < 1) return { id: item, status: 'error', message: 'bad format (use ID@URL)' };
+    const reflectorId = item.slice(0, atIdx).toUpperCase();
+    const baseUrl     = item.slice(atIdx + 1);
+    try {
+      const { entries } = await fetchOneXLX(reflectorId, baseUrl);
+      return { id: reflectorId, status: 'ok', entries };
+    } catch (err) {
+      return { id: reflectorId, status: 'error', message: err.message, entries: [] };
+    }
+  });
+
+  const results  = await Promise.allSettled(jobs);
+  const allEntries = [];
+  const meta = {};
+
+  for (const r of results) {
+    const val = r.status === 'fulfilled' ? r.value : { status: 'error', message: r.reason };
+    const key = (val.id || 'unknown').toLowerCase();
+    if (val.entries) allEntries.push(...val.entries);
+    meta[key] = val.status === 'ok'
+      ? { status: 'ok',    entries: val.entries.length }
+      : { status: 'error', message: val.message };
+  }
+
+  return { entries: allEntries, meta };
 }
 
 // ── aggregation ───────────────────────────────────────────────────────────────
@@ -74,35 +179,37 @@ function buildReflectorList(entries) {
 
 // ── /api/reflectors handler ───────────────────────────────────────────────────
 
-async function handleReflectors() {
+async function handleReflectors(env) {
   const fetchStart = Date.now();
-  const sourceMeta = {};
-  let allEntries = [];
 
-  // REF network via dstarusers.org
-  try {
-    const res = await fetch(DSTAR_USERS_URL, {
-      headers: { 'User-Agent': 'DSTARDashboard/1.0 Amateur-Radio-Monitor' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    const entries = parseDstarUsers(html);
-    allEntries = allEntries.concat(entries);
-    sourceMeta.ref = { status: 'ok', entries: entries.length };
-  } catch (err) {
-    sourceMeta.ref = { status: 'error', message: err.message };
+  const [refResult, xlxResult] = await Promise.allSettled([
+    fetchREF(),
+    fetchXLX(env),
+  ]);
+
+  const allEntries = [];
+  const sources    = {};
+
+  if (refResult.status === 'fulfilled') {
+    allEntries.push(...refResult.value);
+    sources.ref = { status: 'ok', entries: refResult.value.length };
+  } else {
+    sources.ref = { status: 'error', message: refResult.reason?.message };
   }
 
-  // Future sources: XLX, DCS, XRF — push into allEntries here
+  if (xlxResult.status === 'fulfilled') {
+    allEntries.push(...xlxResult.value.entries);
+    Object.assign(sources, xlxResult.value.meta);
+  } else {
+    sources.xlx = { status: 'error', message: xlxResult.reason?.message };
+  }
 
-  const payload = {
+  return new Response(JSON.stringify({
     reflectors: buildReflectorList(allEntries),
-    sources:    sourceMeta,
+    sources,
     updatedAt:  new Date().toISOString(),
     fetchMs:    Date.now() - fetchStart,
-  };
-
-  return new Response(JSON.stringify(payload, null, 2), {
+  }, null, 2), {
     headers: {
       'Content-Type':                'application/json',
       'Access-Control-Allow-Origin': '*',
@@ -115,9 +222,8 @@ async function handleReflectors() {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    const { pathname } = new URL(request.url);
 
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
@@ -128,11 +234,8 @@ export default {
       });
     }
 
-    if (url.pathname === '/api/reflectors') {
-      return handleReflectors();
-    }
+    if (pathname === '/api/reflectors') return handleReflectors(env);
 
-    // Everything else: serve from public/ via Workers Assets binding
     return env.ASSETS.fetch(request);
   },
 };

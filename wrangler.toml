@@ -5,3 +5,11 @@ compatibility_date = "2024-06-01"
 [assets]
 directory = "./public"
 binding = "ASSETS"
+
+# Override in Cloudflare dashboard → Settings → Environment Variables
+# Format: comma-separated ID@BaseURL pairs
+# XLX, DCS, and XRF reflectors all use the same xlxd dashboard format
+# Example:
+#   XLX033@https://xlx033.regasys.net,DCS007@https://dcs007.xreflector.net
+[vars]
+XLX_REFLECTORS = ""
