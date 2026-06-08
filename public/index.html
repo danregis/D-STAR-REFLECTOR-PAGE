@@ -240,6 +240,24 @@
       margin: 24px 0 8px;
     }
 
+    /* ── Copyright bar ──────────────────────────────────────────────────── */
+    .copyright {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.63rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .copyright a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--border);
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .copyright a:hover { color: var(--text); border-bottom-color: var(--muted); }
+
     /* ── Responsive ──────────────────────────────────────────────────────── */
     @media (max-width: 560px) {
       .hide-mobile { display: none; }
@@ -269,6 +287,14 @@
     <div class="source-pills" id="source-pills"></div>
     <span id="foot-right"></span>
   </footer>
+
+  <div class="copyright">
+    &copy; 2026 <a href="https://www.qrz.com/db/VE2DRG" target="_blank" rel="noopener noreferrer">VE2DRG</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/danregis" target="_blank" rel="noopener noreferrer">GitHub</a>
+    &nbsp;&middot;&nbsp;
+    MIT License
+  </div>
 
   <script>
     const API   = '/api/reflectors';
